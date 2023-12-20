@@ -36,6 +36,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
       client.join(session.id);
       this.broadcastSessionUpdates(); // Broadcast updated sessions after a new session is joined/created
+
+      client.emit('selectGameTypeResponse', {
+        status: 'success',
+        sessionId: session.id,
+      });
     } catch (error) {
       client.emit('exception', { message: error.message });
     }
