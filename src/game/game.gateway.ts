@@ -8,39 +8,42 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { GameService } from './game.service'; // Import GameService
+import { GameService } from './game.service';
 
-@WebSocketGateway()
+@WebSocketGateway({
+  cors: {
+    origin: true,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+})
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
   constructor(private gameService: GameService) {}
 
   handleConnection(client: Socket, ...args: any[]) {
-    this.broadcastSessionUpdates(); // Broadcast sessions when a new client connects
+    this.broadcastSessionUpdates();
   }
 
-  handleDisconnect(client: Socket) {
-    // Optionally handle disconnection
-  }
+  handleDisconnect(client: Socket) {}
 
-  @SubscribeMessage('selectGameType')
-  async handleSelectGameType(
+  @SubscribeMessage('requestSessions')
+  async handleRequestSessions(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { gameType: string; playerId: string },
+    @MessageBody() payload: { gameType: string },
   ): Promise<void> {
     try {
-      const session = this.gameService.joinOrCreateSession(
+      let sessions = this.gameService.getAvailableGameSessions(
         payload.gameType,
-        payload.playerId,
       );
-      client.join(session.id);
-      this.broadcastSessionUpdates(); // Broadcast updated sessions after a new session is joined/created
 
-      client.emit('selectGameTypeResponse', {
-        status: 'success',
-        sessionId: session.id,
-      });
+      if (!sessions.length) {
+        const newSession = this.gameService.createSession(payload.gameType);
+        sessions = [newSession];
+      }
+
+      client.emit('availableGames', sessions);
     } catch (error) {
       client.emit('exception', { message: error.message });
     }
@@ -54,7 +57,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       this.gameService.joinGame(payload.sessionId, payload.playerId);
       client.join(payload.sessionId);
-      this.broadcastSessionUpdates(); // Broadcast updated sessions after a player joins a game
+      this.broadcastSessionUpdates();
     } catch (error) {
       client.emit('exception', { message: error.message });
     }
@@ -78,11 +81,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  // Helper method to broadcast current game sessions to all connected clients
   private broadcastSessionUpdates() {
-    const availableSessions = this.gameService.getAvailableGameSessions();
+    const availableSessions =
+      this.gameService.getAvailableGameSessions('tic-tac-toe');
     this.server.emit('availableGames', availableSessions);
   }
-
-  // Additional methods for other game actions can be added here
 }

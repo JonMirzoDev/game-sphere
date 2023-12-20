@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid'; // For generating unique session IDs
-
+import { v4 as uuidv4 } from 'uuid';
 interface GameSession {
   id: string;
   players: string[];
@@ -12,37 +11,9 @@ interface GameSession {
 export class GameService {
   private gameSessions: Record<string, GameSession> = {};
 
-  constructor() {
-    // Optionally prepopulate some game sessions
-    this.prepopulateSessions();
-  }
-
-  private prepopulateSessions(): void {
-    // Example: Prepopulate 5 Tic-Tac-Toe sessions
-    for (let i = 0; i < 5; i++) {
-      this.createGame(`tic-tac-toe-${i}`, 'tic-tac-toe');
-    }
-    // Add prepopulation for other game types as needed
-  }
-
-  joinOrCreateSession(gameType: string, playerId: string): GameSession {
-    const availableSession = this.findAvailableSession(gameType);
-    if (availableSession) {
-      this.joinGame(availableSession.id, playerId);
-      return availableSession;
-    } else {
-      const newSessionId = this.generateSessionId();
-      return this.createGame(newSessionId, gameType);
-    }
-  }
-
-  private findAvailableSession(gameType: string): GameSession | null {
-    return (
-      Object.values(this.gameSessions).find(
-        (session) =>
-          session.gameType === gameType && session.players.length < 2,
-      ) || null
-    );
+  createSession(gameType: string): GameSession {
+    const newSessionId = this.generateSessionId();
+    return this.createGame(newSessionId, gameType);
   }
 
   private createGame(sessionId: string, gameType: string): GameSession {
@@ -69,7 +40,6 @@ export class GameService {
     switch (gameType) {
       case 'tic-tac-toe':
         return this.initializeTicTacToe();
-      // Add other game types here
       default:
         throw new Error('Unknown game type');
     }
@@ -143,15 +113,12 @@ export class GameService {
   }
 
   private generateSessionId(): string {
-    return uuidv4(); // Generates a unique session ID
+    return uuidv4();
   }
 
-  // Method to get all available game sessions
-  getAvailableGameSessions(): GameSession[] {
+  getAvailableGameSessions(gameType: string): GameSession[] {
     return Object.values(this.gameSessions).filter(
-      (session) => session.players.length < 2,
+      (session) => session.players.length < 2 && session.gameType === gameType,
     );
   }
-
-  // Additional methods for other game types can be added here
 }
