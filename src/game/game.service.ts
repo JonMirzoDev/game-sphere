@@ -1,48 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid'; // For generating unique session IDs
+import { v4 as uuidv4 } from 'uuid';
+
+interface Player {
+  id: string;
+  symbol: string;
+}
 
 interface GameSession {
   id: string;
-  players: string[];
+  players: Player[];
   gameType: string;
   gameState: any;
 }
-
 @Injectable()
 export class GameService {
   private gameSessions: Record<string, GameSession> = {};
 
-  constructor() {
-    // Optionally prepopulate some game sessions
-    this.prepopulateSessions();
-  }
-
-  private prepopulateSessions(): void {
-    // Example: Prepopulate 5 Tic-Tac-Toe sessions
-    for (let i = 0; i < 5; i++) {
-      this.createGame(`tic-tac-toe-${i}`, 'tic-tac-toe');
-    }
-    // Add prepopulation for other game types as needed
-  }
-
-  joinOrCreateSession(gameType: string, playerId: string): GameSession {
-    const availableSession = this.findAvailableSession(gameType);
-    if (availableSession) {
-      this.joinGame(availableSession.id, playerId);
-      return availableSession;
-    } else {
-      const newSessionId = this.generateSessionId();
-      return this.createGame(newSessionId, gameType);
-    }
-  }
-
-  private findAvailableSession(gameType: string): GameSession | null {
-    return (
-      Object.values(this.gameSessions).find(
-        (session) =>
-          session.gameType === gameType && session.players.length < 2,
-      ) || null
-    );
+  createSession(gameType: string): GameSession {
+    const newSessionId = this.generateSessionId();
+    return this.createGame(newSessionId, gameType);
   }
 
   private createGame(sessionId: string, gameType: string): GameSession {
@@ -58,18 +34,33 @@ export class GameService {
 
   joinGame(sessionId: string, playerId: string): GameSession {
     const game = this.gameSessions[sessionId];
-    if (game && game.players.length < 2) {
-      game.players.push(playerId);
+    console.log('joinGame: ', game);
+
+    if (!game) {
+      throw new Error('Game not found');
+    }
+
+    if (game.players.length >= 2) {
+      throw new Error('Game already full');
+    }
+
+    const isPlayerInGame = game.players.some(
+      (player) => player.id === playerId,
+    );
+    if (isPlayerInGame) {
       return game;
     }
-    throw new Error('Game not found or already full');
+
+    const symbol = game.players.length === 0 ? 'X' : 'O';
+    game.players.push({ id: playerId, symbol });
+
+    return game;
   }
 
   private initializeGameState(gameType: string): any {
     switch (gameType) {
       case 'tic-tac-toe':
         return this.initializeTicTacToe();
-      // Add other game types here
       default:
         throw new Error('Unknown game type');
     }
@@ -88,20 +79,22 @@ export class GameService {
     sessionId: string,
     playerId: string,
     position: number,
+    playerSymbol: string,
   ): any {
     const game = this.gameSessions[sessionId];
+    console.log('makeTicTacToeMove: ', game);
     if (!game || game.gameType !== 'tic-tac-toe') {
       throw new Error('Invalid game session');
     }
 
     if (
-      game.gameState.currentPlayer !== playerId ||
+      game.gameState.currentPlayer !== playerSymbol ||
       game.gameState.board[position] !== null
     ) {
       throw new Error('Invalid move');
     }
 
-    game.gameState.board[position] = playerId;
+    game.gameState.board[position] = playerSymbol;
 
     const winner = this.checkTicTacToeWinner(game.gameState.board);
     if (winner) {
@@ -143,15 +136,12 @@ export class GameService {
   }
 
   private generateSessionId(): string {
-    return uuidv4(); // Generates a unique session ID
+    return uuidv4();
   }
 
-  // Method to get all available game sessions
-  getAvailableGameSessions(): GameSession[] {
+  getAvailableGameSessions(gameType: string): GameSession[] {
     return Object.values(this.gameSessions).filter(
-      (session) => session.players.length < 2,
+      (session) => session.players.length < 2 && session.gameType === gameType,
     );
   }
-
-  // Additional methods for other game types can be added here
 }
