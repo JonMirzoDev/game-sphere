@@ -55,11 +55,21 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() payload: { sessionId: string; playerId: string },
   ): Promise<void> {
     try {
-      this.gameService.joinGame(payload.sessionId, payload.playerId);
+      const game = this.gameService.joinGame(
+        payload.sessionId,
+        payload.playerId,
+      );
       client.join(payload.sessionId);
       this.broadcastSessionUpdates();
+      client.emit('joinGameResponse', {
+        status: 'success',
+        game, // Include the game data in the response
+      });
     } catch (error) {
-      client.emit('exception', { message: error.message });
+      client.emit('joinGameResponse', {
+        status: 'error',
+        message: error.message,
+      });
     }
   }
 
@@ -67,13 +77,19 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleMakeMove(
     @ConnectedSocket() client: Socket,
     @MessageBody()
-    payload: { sessionId: string; playerId: string; position: number },
+    payload: {
+      sessionId: string;
+      playerId: string;
+      position: number;
+      playerSymbol: string;
+    },
   ): Promise<void> {
     try {
       const updatedGameState = this.gameService.makeTicTacToeMove(
         payload.sessionId,
         payload.playerId,
         payload.position,
+        payload.playerSymbol,
       );
       this.server.to(payload.sessionId).emit('gameState', updatedGameState);
     } catch (error) {

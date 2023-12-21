@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
+
+interface Player {
+  id: string;
+  symbol: string;
+}
+
 interface GameSession {
   id: string;
-  players: string[];
+  players: Player[];
   gameType: string;
   gameState: any;
 }
-
 @Injectable()
 export class GameService {
   private gameSessions: Record<string, GameSession> = {};
@@ -29,11 +34,27 @@ export class GameService {
 
   joinGame(sessionId: string, playerId: string): GameSession {
     const game = this.gameSessions[sessionId];
-    if (game && game.players.length < 2) {
-      game.players.push(playerId);
+    console.log('joinGame: ', game);
+
+    if (!game) {
+      throw new Error('Game not found');
+    }
+
+    if (game.players.length >= 2) {
+      throw new Error('Game already full');
+    }
+
+    const isPlayerInGame = game.players.some(
+      (player) => player.id === playerId,
+    );
+    if (isPlayerInGame) {
       return game;
     }
-    throw new Error('Game not found or already full');
+
+    const symbol = game.players.length === 0 ? 'X' : 'O';
+    game.players.push({ id: playerId, symbol });
+
+    return game;
   }
 
   private initializeGameState(gameType: string): any {
@@ -58,20 +79,22 @@ export class GameService {
     sessionId: string,
     playerId: string,
     position: number,
+    playerSymbol: string,
   ): any {
     const game = this.gameSessions[sessionId];
+    console.log('makeTicTacToeMove: ', game);
     if (!game || game.gameType !== 'tic-tac-toe') {
       throw new Error('Invalid game session');
     }
 
     if (
-      game.gameState.currentPlayer !== playerId ||
+      game.gameState.currentPlayer !== playerSymbol ||
       game.gameState.board[position] !== null
     ) {
       throw new Error('Invalid move');
     }
 
-    game.gameState.board[position] = playerId;
+    game.gameState.board[position] = playerSymbol;
 
     const winner = this.checkTicTacToeWinner(game.gameState.board);
     if (winner) {
