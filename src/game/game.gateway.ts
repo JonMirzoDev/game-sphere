@@ -63,7 +63,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.broadcastSessionUpdates();
       client.emit('joinGameResponse', {
         status: 'success',
-        game, // Include the game data in the response
+        game,
       });
     } catch (error) {
       client.emit('joinGameResponse', {
@@ -85,12 +85,32 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ): Promise<void> {
     try {
-      const updatedGameState = this.gameService.makeTicTacToeMove(
-        payload.sessionId,
-        payload.playerId,
-        payload.position,
-        payload.playerSymbol,
-      );
+      const gameSession = this.gameService.getGameSession(payload.sessionId);
+      if (!gameSession) {
+        throw new Error('Game session not found');
+      }
+
+      let updatedGameState;
+      switch (gameSession.gameType) {
+        case 'tic-tac-toe':
+          updatedGameState = this.gameService.makeTicTacToeMove(
+            payload.sessionId,
+            payload.playerId,
+            payload.position,
+            payload.playerSymbol,
+          );
+          break;
+        case 'connect-four':
+          updatedGameState = this.gameService.makeConnectFourMove(
+            payload.sessionId,
+            payload.playerId,
+            payload.position,
+          );
+          break;
+        default:
+          throw new Error('Unsupported game type');
+      }
+
       this.server.to(payload.sessionId).emit('gameState', updatedGameState);
     } catch (error) {
       client.emit('exception', { message: error.message });
@@ -98,8 +118,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private broadcastSessionUpdates() {
-    const availableSessions =
+    const ticTacToeSessions =
       this.gameService.getAvailableGameSessions('tic-tac-toe');
-    this.server.emit('availableGames', availableSessions);
+    const connectFourSessions =
+      this.gameService.getAvailableGameSessions('connect-four');
+    const allSessions = [...ticTacToeSessions, ...connectFourSessions];
+    this.server.emit('availableGames', allSessions);
   }
 }
